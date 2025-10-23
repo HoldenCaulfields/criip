@@ -1,45 +1,51 @@
 import React from "react";
-import { View, TextInput, Button, StyleSheet } from "react-native";
+import { View, Text, Image, StyleSheet, Platform } from "react-native";
 
-interface NavbarProps {
-  searchText: string;
-  setSearchText: React.Dispatch<React.SetStateAction<string>>;
-  onCreateSoul: () => void;
-}
-
-export default function Navbar({
-  searchText,
-  setSearchText,
-  onCreateSoul,
-}: NavbarProps) {
+export default function Navbar() {
   return (
     <View style={styles.navbar}>
-      <TextInput
-        style={styles.input}
-        placeholder="Search..."
-        value={searchText}
-        onChangeText={setSearchText}
-      />
-      <Button title="Create" onPress={onCreateSoul} />
+      <View style={styles.content}>
+        <Image
+          source={require("../assets/images/criip.png")}
+          style={styles.logo}
+        />
+        <Text style={styles.title}>criip</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   navbar: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 50 : 30,
+    left: 20,
+    right: 20,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 10, // <-- make sure it's above the Map
+  },
+  content: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    padding: 10,
-    backgroundColor: "white",
-    elevation: 4,
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 8,
-    marginRight: 10,
-    borderRadius: 8,
+  logo: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    marginRight: 8,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#222",
+    letterSpacing: 0.5,
   },
 });
