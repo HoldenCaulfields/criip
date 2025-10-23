@@ -6,15 +6,11 @@ import SocialPanel from "@/components/SocialPanel";
 
 export default function HomeScreen() {
   
-  const handleOpenChat = () => {
-    console.log("Open Chat UI");
-  };
-
   return (
     <View style={styles.container}>
       <Navbar />
       <Map />
-      <SocialPanel onOpenChat={handleOpenChat} />
+      <SocialPanel />
     </View>
   );
 }

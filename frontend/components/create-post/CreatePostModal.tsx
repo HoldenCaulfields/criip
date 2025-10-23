@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   View, Text, TextInput, Modal, Pressable, Image, StyleSheet,
   KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Platform, 
-  ScrollView, Animated
+  ScrollView, Animated, PanResponder
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -30,6 +30,42 @@ export default function CreatePostModal({ visible, onClose }: CreatePostModalPro
   const [loading, setLoading] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
+
+  const panResponder = React.useRef(
+  PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gestureState) => {
+      // Only activate when user drags down slightly
+      return Math.abs(gestureState.dy) > 10;
+    },
+    onPanResponderMove: (_, gestureState) => {
+      if (gestureState.dy > 0) {
+        slideAnim.setValue(gestureState.dy); // move down as user drags
+      }
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      if (gestureState.dy > 120) {
+        // if dragged far enough, close modal
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+        Animated.timing(slideAnim, {
+          toValue: 300,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => onClose());
+      } else {
+        // not enough drag -> bounce back
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    },
+  })
+).current;
+
 
   useEffect(() => {
     (async () => {
@@ -146,7 +182,7 @@ export default function CreatePostModal({ visible, onClose }: CreatePostModalPro
   };
 
   return (
-    <Modal visible={visible} animationType="fade" transparent>
+    <Modal visible={visible} animationType="slide" transparent>
       <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
         <View style={styles.overlay}>
           <KeyboardAvoidingView
@@ -163,17 +199,17 @@ export default function CreatePostModal({ visible, onClose }: CreatePostModalPro
               ]}
             >
               {/* Header */}
-              <View style={styles.header}>
-                <View style={styles.headerBar} />
+              <View style={styles.header} {...panResponder.panHandlers}>
+                <View style={styles.headerBar}/>
                 <Text style={styles.title}>Create Post</Text>
                 <Pressable onPress={onClose} style={styles.closeBtn}>
                   <Text style={styles.closeText}>✕</Text>
                 </Pressable>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView showsVerticalScrollIndicator={false} {...panResponder.panHandlers}>
                 {/* Text Input */}
-                <View style={styles.inputContainer}>
+                <View style={styles.inputContainer}  {...panResponder.panHandlers}>
                   <TextInput
                     style={styles.input}
                     placeholder="What's on your mind?"
@@ -296,7 +332,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingHorizontal: 24,
     paddingBottom: 32,
-    maxHeight: "90%",
+    maxHeight: "100%",
     shadowColor: "#1E293B",
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: -8 },
