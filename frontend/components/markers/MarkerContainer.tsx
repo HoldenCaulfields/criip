@@ -13,12 +13,14 @@ interface MarkerContainerProps {
   }[];
   onLovePress?: (markerId: string) => void;
   setChatVisible: (value: boolean) => void;
+  setChatMode: (value: 'chat'| 'chatlist') => void;
 }
 
 export default function MarkerContainer({
   markers,
   onLovePress,
   setChatVisible,
+  setChatMode,
 }: MarkerContainerProps) {
   const OFFSET = 0.00002;
 
@@ -102,7 +104,7 @@ export default function MarkerContainer({
 
                 <CalloutSubview
                   style={styles.chatButton}
-                  onPress={() => setChatVisible(true)}
+                  onPress={() => {setChatVisible(true); setChatMode('chat')}}
                 >
                   <View style={styles.buttonContent}>
                     <Text style={styles.chatEmoji}>💬</Text>

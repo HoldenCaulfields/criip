@@ -26,6 +26,7 @@ export default function Map() {
   const [markers, setMarkers] = useState<PostMarker[]>([]);
   const mapRef = useRef<MapView | null>(null);
   const [chatVisible, setChatVisible] = useState(false);
+  const [chatMode, setChatMode] = useState<"chatlist" | "chat">("chatlist");
 
   const fetchMarkers = async () => {
     try {
@@ -93,7 +94,8 @@ export default function Map() {
       <MapView ref={mapRef} style={styles.map} region={region} showsUserLocation showsMyLocationButton={false}>
         <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
 
-        <MarkerContainer markers={markers} onLovePress={fetchMarkers} setChatVisible={setChatVisible}/> 
+        <MarkerContainer markers={markers} onLovePress={fetchMarkers} 
+          setChatVisible={setChatVisible} setChatMode={setChatMode} />
 
       </MapView>
 
@@ -101,9 +103,13 @@ export default function Map() {
         <Text style={styles.locateText}>📍</Text>
       </Pressable>
 
-      <SocialPanel setChatVisible={setChatVisible} /> 
+      <SocialPanel setChatVisible={setChatVisible} />
 
-      <ChatBox visible={chatVisible} onClose={() => setChatVisible(false)} />
+      <ChatBox
+        visible={chatVisible}
+        initialMode={chatMode}
+        onClose={() => {setChatVisible(false); setChatMode('chatlist')}}
+      />
     </View>
   );
 }
