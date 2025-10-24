@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Pressable, Text, StyleSheet } from "react-native";
 import CreatePostModal from "./create-post/CreatePostModal";
+import GroupList from "./groupList/GroupList";
 
 interface SocialProp {
     setChatVisible: (value: boolean) => void;
@@ -8,6 +9,12 @@ interface SocialProp {
 
 export default function SocialPanel({setChatVisible}: SocialProp) {
     const [modalVisible, setModalVisible] = useState(false);
+    const [modalVisible2, setModalVisible2] = useState(false);
+
+    const handleSelectRoom = (roomId: string) => {
+    console.log("Joined room:", roomId);
+    // You can now emit join_room or navigate to ChatBox
+  };
 
     return (
         <View style={styles.container}>
@@ -23,6 +30,12 @@ export default function SocialPanel({setChatVisible}: SocialProp) {
 
             {/* Modals */}
             <CreatePostModal visible={modalVisible} onClose={() => setModalVisible(false)} />
+
+            <Pressable style={styles.button} onPress={() => setModalVisible2(true)}>
+                <Text style={styles.icon}>--</Text>
+            </Pressable>
+
+            <GroupList onSelectRoom={handleSelectRoom} visible={modalVisible2} onClose={() => setModalVisible2(false)}/>
         </View>
     );
 }
