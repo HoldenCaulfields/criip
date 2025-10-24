@@ -3,6 +3,8 @@ import { StyleSheet, View, Text, Alert, Pressable } from "react-native";
 import MapView, { UrlTile } from "react-native-maps";
 import * as Location from "expo-location";
 import MarkerContainer from "./markers/MarkerContainer";
+import SocialPanel from "./SocialPanel";
+import ChatBox from "./chatbox/ChatBox";
 
 interface PostMarker {
   _id: string;
@@ -23,15 +25,16 @@ export default function Map() {
   });
   const [markers, setMarkers] = useState<PostMarker[]>([]);
   const mapRef = useRef<MapView | null>(null);
+  const [chatVisible, setChatVisible] = useState(false);
 
   const fetchMarkers = async () => {
     try {
       const res = await fetch("http://192.168.1.12:5000/api/posts");
-      const data: PostMarker[] = await res.json();
-      setMarkers(data);
+      if (!res.ok) throw new Error("Failed to load posts");
+      const data = await res.json();
+      setMarkers(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Failed to fetch markers:", err);
-      Alert.alert("Error", "Could not load posts.");
+      console.warn("Failed to fetch markers:", err);
     }
   };
 
@@ -89,12 +92,18 @@ export default function Map() {
     <View style={styles.container}>
       <MapView ref={mapRef} style={styles.map} region={region} showsUserLocation showsMyLocationButton={false}>
         <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
-        <MarkerContainer markers={markers} onLovePress={() => {fetchMarkers()}}/> {/* 👈 Use component */}
+
+        <MarkerContainer markers={markers} onLovePress={fetchMarkers} setChatVisible={setChatVisible}/> 
+
       </MapView>
 
       <Pressable style={styles.locateButton} onPress={handleCenterUser}>
         <Text style={styles.locateText}>📍</Text>
       </Pressable>
+
+      <SocialPanel setChatVisible={setChatVisible} /> 
+
+      <ChatBox visible={chatVisible} onClose={() => setChatVisible(false)} />
     </View>
   );
 }

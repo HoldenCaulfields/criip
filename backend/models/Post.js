@@ -12,6 +12,10 @@ const postSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  loves: {
+    type: Number,
+    default: 0,
+  },
 });
 
 export default mongoose.model("Post", postSchema);

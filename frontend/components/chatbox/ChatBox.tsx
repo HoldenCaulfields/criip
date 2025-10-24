@@ -5,6 +5,8 @@ import {
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 
+const SOCKET_URL = "https://192.168.1.12/api/";
+
 // --- Type Definitions (Kept the same) ---
 interface ChatMessage {
     id: string;
@@ -55,7 +57,7 @@ export default function ChatBox({ visible, onClose }: ChatBoxProps) {
 
         const newMessage: ChatMessage = {
             id: Date.now().toString(),
-            text: input.trim(),
+            text: String(input.trim()),
             userId: selectedUser.id,
             sender: "me"
         };
@@ -65,7 +67,7 @@ export default function ChatBox({ visible, onClose }: ChatBoxProps) {
         setTimeout(() => {
             const replyMessage: ChatMessage = {
                 id: (Date.now() + 1).toString(),
-                text: `Got it! ${selectedUser.name} is typing a response...`,
+                text: `Got it! ${selectedUser?.name ?? "User"} is typing a response...`,
                 userId: selectedUser.id,
                 sender: "them"
             };
@@ -111,7 +113,7 @@ export default function ChatBox({ visible, onClose }: ChatBoxProps) {
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent>
+        <Modal visible={visible} animationType="slide" transparent >
             <View style={styles.modalOverlay}>
                 
                 {/* 1. KeyboardAvoidingView wraps all chat content below the header. */}

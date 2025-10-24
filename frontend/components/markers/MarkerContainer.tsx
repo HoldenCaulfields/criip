@@ -11,14 +11,14 @@ interface MarkerContainerProps {
     loves: number;
     location: { latitude: number; longitude: number };
   }[];
-  onChatPress?: (markerId: string) => void;
   onLovePress?: (markerId: string) => void;
+  setChatVisible: (value: boolean) => void;
 }
 
 export default function MarkerContainer({
   markers,
-  onChatPress,
   onLovePress,
+  setChatVisible,
 }: MarkerContainerProps) {
   const OFFSET = 0.00002;
 
@@ -29,7 +29,7 @@ export default function MarkerContainer({
         method: "PUT",
       });
       const updated = await res.json();
-      console.log("❤️ Loved:", updated.loves);
+      /* console.log("❤️ Loved:", updated.loves); */
       onLovePress?.(markerId);
     } catch (err) {
       console.error("Failed to love marker:", err);
@@ -102,7 +102,7 @@ export default function MarkerContainer({
 
                 <CalloutSubview
                   style={styles.chatButton}
-                  onPress={() => onChatPress?.(marker._id)}
+                  onPress={() => setChatVisible(true)}
                 >
                   <View style={styles.buttonContent}>
                     <Text style={styles.chatEmoji}>💬</Text>

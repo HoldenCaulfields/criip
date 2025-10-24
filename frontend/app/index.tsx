@@ -10,7 +10,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <Navbar />
       <Map />
-      <SocialPanel />
+      {/* <SocialPanel /> */}
     </View>
   );
 }

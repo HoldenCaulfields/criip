@@ -34,4 +34,19 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.put("/:id/love", async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ error: "Post not found" });
+
+    // if 'loves' not exist yet, default to 0
+    post.loves = (post.loves || 0) + 1;
+    await post.save();
+
+    res.json(post);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update love" });
+  }
+});
+
 export default router;

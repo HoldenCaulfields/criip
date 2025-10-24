@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { View, Pressable, Text, StyleSheet } from "react-native";
 import CreatePostModal from "./create-post/CreatePostModal";
-import ChatBox from "./chatbox/ChatBox"; // import the chat component
 
-export default function SocialPanel() {
+interface SocialProp {
+    setChatVisible: (value: boolean) => void;
+}
+
+export default function SocialPanel({setChatVisible}: SocialProp) {
     const [modalVisible, setModalVisible] = useState(false);
-    const [chatVisible, setChatVisible] = useState(false);
 
     return (
         <View style={styles.container}>
@@ -21,7 +23,6 @@ export default function SocialPanel() {
 
             {/* Modals */}
             <CreatePostModal visible={modalVisible} onClose={() => setModalVisible(false)} />
-            <ChatBox visible={chatVisible} onClose={() => setChatVisible(false)} />
         </View>
     );
 }
