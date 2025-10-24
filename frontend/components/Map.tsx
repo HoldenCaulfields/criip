@@ -5,6 +5,7 @@ import * as Location from "expo-location";
 import MarkerContainer from "./markers/MarkerContainer";
 import SocialPanel from "./SocialPanel";
 import ChatBox from "./chatbox/ChatBox";
+import GroupChat from "./groupchat/GroupChat";
 
 interface PostMarker {
   _id: string;
@@ -27,6 +28,7 @@ export default function Map() {
   const mapRef = useRef<MapView | null>(null);
   const [chatVisible, setChatVisible] = useState(false);
   const [chatMode, setChatMode] = useState<"chatlist" | "chat">("chatlist");
+  const [roomId, setRoomId] = useState<string |null>(null);
 
   const fetchMarkers = async () => {
     try {
@@ -95,7 +97,7 @@ export default function Map() {
         <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
 
         <MarkerContainer markers={markers} onLovePress={fetchMarkers} 
-          setChatVisible={setChatVisible} setChatMode={setChatMode} />
+          setChatVisible={setChatVisible} setChatMode={setChatMode} setRoomId={setRoomId}/>
 
       </MapView>
 
@@ -105,17 +107,27 @@ export default function Map() {
 
       <SocialPanel setChatVisible={setChatVisible} />
 
-      <ChatBox
+      {/* <ChatBox
         visible={chatVisible}
         initialMode={chatMode}
+        roomId={roomId} 
         onClose={() => {setChatVisible(false); setChatMode('chatlist')}}
-      />
+      /> */}
+
+      {chatVisible && (
+        <GroupChat
+          roomId={roomId}
+          userId={((location?.latitude ?? 0)*100000 + (location?.longitude ?? 0)*100000).toString()}
+          onClose={() => setChatVisible(false)}
+          visible={chatVisible}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1 },  
   map: { width: "100%", height: "100%" },
   locateButton: {
     position: "absolute",

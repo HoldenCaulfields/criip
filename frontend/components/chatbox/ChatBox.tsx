@@ -4,8 +4,12 @@ import {
     Animated, KeyboardAvoidingView
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
+import io from 'socket.io-client';
 
-const SOCKET_URL = "https://192.168.1.12/api/";
+
+const socket = io("http://192.168.1.12:5000", {
+    transports: ['websocket'],
+});
 
 // --- Type Definitions ---
 type ChatMode = "chat" | "chatlist";
@@ -13,8 +17,9 @@ type ChatMode = "chat" | "chatlist";
 interface ChatMessage {
     id: string;
     text: string;
-    userId: string;
     sender: "me" | "them";
+    roomId: string | null;
+    userId?: string; // optional if not needed anymore
 }
 
 interface User {
@@ -27,9 +32,10 @@ interface ChatBoxProps {
     visible: boolean;
     onClose: () => void;
     // New prop to set the initial view (defaults to 'chatlist' if not provided)
-    initialMode?: ChatMode; 
+    initialMode?: ChatMode;
     // Optional prop for starting a chat directly with a user/group
-    initialUser?: User | null; 
+    initialUser?: User | null;
+    roomId?: string | null;
 }
 
 // --- Enhanced Design Variables ---
@@ -59,8 +65,8 @@ const ChatListScreen = ({ users, onSelectUser }: ChatListScreenProps) => {
     const recommendedUser = users[3];
 
     const renderChatListItem = ({ item }: { item: typeof recentChats[0] }) => (
-        <Pressable 
-            style={styles.chatListItem} 
+        <Pressable
+            style={styles.chatListItem}
             onPress={() => onSelectUser(item)}
             android_ripple={{ color: '#ccc' }}
         >
@@ -82,7 +88,7 @@ const ChatListScreen = ({ users, onSelectUser }: ChatListScreenProps) => {
                 renderItem={renderChatListItem}
                 ItemSeparatorComponent={() => <View style={styles.separator} />}
             />
-            
+
             {/* Recommendation/Suggestion Section */}
             <View style={styles.recommendationBox}>
                 <Text style={styles.listHeader}>Recommended Friend</Text>
@@ -103,11 +109,12 @@ const ChatListScreen = ({ users, onSelectUser }: ChatListScreenProps) => {
 // 💬 MAIN COMPONENT
 // =================================================================
 
-export default function ChatBox({ visible, onClose, initialMode = "chatlist", initialUser = null }: ChatBoxProps) {
+export default function ChatBox({ visible, onClose, initialMode = "chatlist", initialUser = null, roomId }: ChatBoxProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [selectedUser, setSelectedUser] = useState<User | null>(initialUser);
     const [mode, setMode] = useState<ChatMode>(initialMode); // New mode state
+    const [currentRoomId, setCurrentRoomId] = useState<string | null>(roomId || null);
 
     const users: User[] = [
         { id: "1", name: "Alice", avatar: "https://i.pravatar.cc/150?img=1" },
@@ -115,6 +122,25 @@ export default function ChatBox({ visible, onClose, initialMode = "chatlist", in
         { id: "3", name: "Charlie", avatar: "https://i.pravatar.cc/150?img=3" },
         { id: "4", name: "David", avatar: "https://i.pravatar.cc/150?img=4" },
     ];
+
+    // 👇 Join socket room when visible
+    useEffect(() => {
+        if (visible && roomId) {
+            socket.emit("join_room", roomId);
+            console.log("Joined room:", roomId);
+        }
+    }, [visible, roomId]);
+
+    // 👇 Listen for incoming messages
+    useEffect(() => {
+        socket.on("receive_message", (data) => {
+            setMessages((prev) => [data, ...prev]);
+        });
+
+        return () => {
+            socket.off("receive_message");
+        };
+    }, []);
 
     // Initialize selectedUser and mode when the modal becomes visible
     useEffect(() => {
@@ -134,9 +160,20 @@ export default function ChatBox({ visible, onClose, initialMode = "chatlist", in
     if (!visible) return null;
 
     const goToChat = (user: User) => {
-        setSelectedUser(user);
-        setMode("chat");
-    };
+    setSelectedUser(user);
+    setMode("chat");
+    
+    // Generate room ID and join
+    const newRoomId = `room_${user.id}`;
+    setCurrentRoomId(newRoomId);
+    
+    // Leave previous room and join new one
+    if (currentRoomId) {
+        socket.emit("leave_room", currentRoomId);
+    }
+    socket.emit("join_room", newRoomId);
+    console.log("Joined room:", newRoomId);
+};
 
     const goToChatList = () => {
         setMode("chatlist");
@@ -144,28 +181,21 @@ export default function ChatBox({ visible, onClose, initialMode = "chatlist", in
     };
 
     const sendMessage = () => {
-        // ... (sendMessage logic remains the same)
-        if (!selectedUser || input.trim() === "") return;
+        if (!input.trim() || !roomId) return;
 
         const newMessage: ChatMessage = {
             id: Date.now().toString(),
-            text: String(input.trim()),
-            userId: selectedUser.id,
-            sender: "me"
+            text: input.trim(),
+            sender: "me",
+            roomId,
         };
-        setMessages(prev => [newMessage, ...prev]);
+
+        setMessages((prev) => [newMessage, ...prev]);
         setInput("");
 
-        setTimeout(() => {
-            const replyMessage: ChatMessage = {
-                id: (Date.now() + 1).toString(),
-                text: `Got it! ${selectedUser?.name ?? "User"} is typing a response...`,
-                userId: selectedUser.id,
-                sender: "them"
-            };
-            setMessages(prev => [replyMessage, ...prev]);
-        }, 1200);
+        socket.emit("send_message", newMessage);
     };
+
 
     const filteredMessages = selectedUser
         ? messages.filter(msg => msg.userId === selectedUser.id)
@@ -176,8 +206,8 @@ export default function ChatBox({ visible, onClose, initialMode = "chatlist", in
         const isMe = item.sender === "me";
         const bubbleStyle = isMe ? styles.myMessage : styles.theirMessage;
 
-        const onPressIn = () => {};
-        const onPressOut = () => {};
+        const onPressIn = () => { };
+        const onPressOut = () => { };
 
         return (
             <View style={[styles.messageRow, { justifyContent: isMe ? 'flex-end' : 'flex-start' }]}>
@@ -319,11 +349,11 @@ export default function ChatBox({ visible, onClose, initialMode = "chatlist", in
             {/* Header for Chat List View */}
             <View style={styles.header}>
                 <Pressable onPress={onClose} style={styles.headerButton}>
-                    <Ionicons name="close-outline" size={30} color="#1c1e21" /> 
+                    <Ionicons name="close-outline" size={30} color="#1c1e21" />
                 </Pressable>
                 <Text style={styles.chatListMainTitle}>Chats</Text>
                 <Pressable style={styles.headerButton}>
-                    <Ionicons name="create-outline" size={28} color={PRIMARY_BLUE} /> 
+                    <Ionicons name="create-outline" size={28} color={PRIMARY_BLUE} />
                 </Pressable>
             </View>
             <View style={styles.divider} />
@@ -487,7 +517,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     selectUserText: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: SECONDARY_BG },
-    
+
     // --- New ChatListScreen Styles ---
     chatListContainer: {
         flex: 1,
