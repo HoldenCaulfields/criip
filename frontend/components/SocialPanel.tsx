@@ -2,54 +2,80 @@ import React, { useState } from "react";
 import { View, Pressable, Text, StyleSheet } from "react-native";
 import CreatePostModal from "./create-post/CreatePostModal";
 import GroupList from "./groupList/GroupList";
+import GroupChat from "./groupchat/GroupChat";
 
-interface SocialProp {
-    setChatVisible: (value: boolean) => void;
+interface PanelProps {
+  openChat: boolean;
+  userId: string;
+  roomId: string | null;
+  onOpenChat: (roomId: string) => void;
+  onCloseChat: () => void;
 }
 
-export default function SocialPanel({setChatVisible}: SocialProp) {
-    const [modalVisible, setModalVisible] = useState(false);
-    const [modalVisible2, setModalVisible2] = useState(false);
+export default function SocialPanel({
+  openChat,
+  userId,
+  roomId,
+  onOpenChat,
+  onCloseChat,
+}: PanelProps) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [groupVisible, setGroupVisible] = useState(false);
 
-    const handleSelectRoom = (roomId: string) => {
-    console.log("Joined room:", roomId);
-    // You can now emit join_room or navigate to ChatBox
+  const handleSelectRoom = (roomId: string) => {
+    onOpenChat(roomId);
+    setGroupVisible(false);
   };
 
-    return (
-        <View style={styles.container}>
-            {/* + Button opens post modal */}
-            <Pressable style={styles.button} onPress={() => setModalVisible(true)}>
-                <Text style={styles.icon}>➕</Text>
-            </Pressable>
+  return (
+    <View style={styles.container}>
+      {/* ➕ Button */}
+      <Pressable style={styles.button} onPress={() => setModalVisible(true)}>
+        <Text style={styles.icon}>➕</Text>
+      </Pressable>
 
-            {/* Chat button */}
-            <Pressable style={styles.button} onPress={() => setChatVisible(true)}>
-                <Text style={styles.icon}>💬</Text>
-            </Pressable>
+      <CreatePostModal visible={modalVisible} onClose={() => setModalVisible(false)} />
 
-            {/* Modals */}
-            <CreatePostModal visible={modalVisible} onClose={() => setModalVisible(false)} />
+      {/* 💬 Button */}
+      <Pressable style={styles.button} onPress={() => setGroupVisible(true)}>
+        <Text style={styles.icon}>💬</Text>
+      </Pressable>
 
-            <Pressable style={styles.button} onPress={() => setModalVisible2(true)}>
-                <Text style={styles.icon}>--</Text>
-            </Pressable>
+      <GroupList
+        onSelectRoom={handleSelectRoom}
+        visible={groupVisible}
+        onClose={() => setGroupVisible(false)}
+      />
 
-            <GroupList onSelectRoom={handleSelectRoom} visible={modalVisible2} onClose={() => setModalVisible2(false)}/>
-        </View>
-    );
+      {/* Group Chat (controlled by Map) */}
+      {openChat && (
+        <GroupChat
+          visible={openChat}
+          roomId={roomId}
+          userId={userId}
+          onClose={onCloseChat}
+        />
+      )}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: { position: "absolute", bottom: 40, left: 20, flexDirection: "column", gap: 12 },
-    button: {
-        backgroundColor: "white",
-        borderRadius: 25,
-        padding: 12,
-        shadowColor: "#000",
-        shadowOpacity: 0.2,
-        shadowRadius: 3,
-        elevation: 3,
-    },
-    icon: { fontSize: 20 },
+  container: {
+    position: "absolute",
+    bottom: 40,
+    left: 20,
+    flexDirection: "column",
+    gap: 12,
+  },
+  button: {
+    backgroundColor: "white",
+    borderRadius: 25,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  icon: { fontSize: 20 },
 });

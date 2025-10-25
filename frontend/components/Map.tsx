@@ -4,8 +4,6 @@ import MapView, { UrlTile } from "react-native-maps";
 import * as Location from "expo-location";
 import MarkerContainer from "./markers/MarkerContainer";
 import SocialPanel from "./SocialPanel";
-import ChatBox from "./chatbox/ChatBox";
-import GroupChat from "./groupchat/GroupChat";
 
 interface PostMarker {
   _id: string;
@@ -28,9 +26,9 @@ export default function Map() {
   const mapRef = useRef<MapView | null>(null);
   const [chatVisible, setChatVisible] = useState(false);
   const [chatMode, setChatMode] = useState<"chatlist" | "chat">("chatlist");
-  const [roomId, setRoomId] = useState<string |null>(null);
+  const [roomId, setRoomId] = useState<string | null>(null);
 
-  const fetchMarkers = async () => {
+  const fetchMarkers = async () => {  
     try {
       const res = await fetch("http://192.168.1.12:5000/api/posts");
       if (!res.ok) throw new Error("Failed to load posts");
@@ -91,13 +89,18 @@ export default function Map() {
     return () => clearInterval(interval);
   }, []);
 
+  // 🧠 When chat closes, reset refreshKey so markers remount
+  const handleCloseChat = () => {
+    setChatVisible(false);
+  };
+
   return (
     <View style={styles.container}>
       <MapView ref={mapRef} style={styles.map} region={region} showsUserLocation showsMyLocationButton={false}>
         <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
 
-        <MarkerContainer markers={markers} onLovePress={fetchMarkers} 
-          setChatVisible={setChatVisible} setChatMode={setChatMode} setRoomId={setRoomId}/>
+        <MarkerContainer markers={markers} onLovePress={fetchMarkers}
+          setChatVisible={setChatVisible} setChatMode={setChatMode} setRoomId={setRoomId} />
 
       </MapView>
 
@@ -105,14 +108,22 @@ export default function Map() {
         <Text style={styles.locateText}>📍</Text>
       </Pressable>
 
-      <SocialPanel setChatVisible={setChatVisible} />
-
+      <SocialPanel
+        openChat={chatVisible}
+        roomId={roomId}
+        userId={((location?.latitude ?? 0) * 100000 + (location?.longitude ?? 0) * 100000).toString()}
+        onOpenChat={(id) => {
+          setRoomId(id);
+          setChatVisible(true);
+        }}
+        onCloseChat={handleCloseChat}
+      />
       {/* <ChatBox
         visible={chatVisible}
         initialMode={chatMode}
         roomId={roomId} 
         onClose={() => {setChatVisible(false); setChatMode('chatlist')}}
-      /> */}
+      /> 
 
       {chatVisible && (
         <GroupChat
@@ -121,13 +132,13 @@ export default function Map() {
           onClose={() => setChatVisible(false)}
           visible={chatVisible}
         />
-      )}
+      )}*/}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },  
+  container: { flex: 1 },
   map: { width: "100%", height: "100%" },
   locateButton: {
     position: "absolute",
