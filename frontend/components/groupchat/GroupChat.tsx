@@ -29,7 +29,6 @@ interface Message {
     userId: string;
     text: string;
     timestamp: number;
-    likes?: number;
 }
 
 interface Post {
@@ -47,8 +46,7 @@ interface Post {
 
 interface Member {
     userId: string;
-    joinedAt: number;
-    isTyping?: boolean;
+    socketId: string;
 }
 
 const SOCKET_URL = "http://192.168.1.12:5000";
@@ -60,15 +58,14 @@ export default function GroupChat({ roomId, userId, onClose, visible }: GroupCha
     const [messages, setMessages] = useState<Message[]>([]);
     const [post, setPost] = useState<Post | null>(null);
     const [members, setMembers] = useState<Member[]>([]);
-    const [typingUsers, setTypingUsers] = useState<string[]>([]);
     const [showMembers, setShowMembers] = useState(false);
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     const flatListRef = useRef<FlatList>(null);
     const slideAnim = useRef(new Animated.Value(0)).current;
-    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
 
-    // Fetch post
+    // Fetch post details
     useEffect(() => {
         const fetchPost = async () => {
             if (!roomId) return;
@@ -82,141 +79,178 @@ export default function GroupChat({ roomId, userId, onClose, visible }: GroupCha
                 setLoading(false);
             }
         };
-        fetchPost();
-    }, [roomId]);
+        
+        if (visible && roomId) {
+            setLoading(true);
+            fetchPost();
+        }
+    }, [roomId, visible]);
 
-    // Setup socket
+    // Setup socket connection
     useEffect(() => {
+        if (!visible) return;
+
         const s: Socket = io(SOCKET_URL);
         setSocket(s);
 
+        s.on("connect", () => {
+            console.log("✅ Connected to chat server");
+        });
+
         s.on("receive_message", (msg: Message) => {
+            console.log("📩 Received message:", msg.text);
             setMessages((prev) => [...prev, msg]);
         });
 
         s.on("room_members", (memberList: Member[]) => {
+            console.log("👥 Room members updated:", memberList.length);
             setMembers(memberList);
         });
 
-        s.on("user_joined", (member: Member) => {
-            setMembers((prev) => [...prev, member]);
+        s.on("user_joined", (member: { userId: string }) => {
+            console.log("👋 User joined:", member.userId);
         });
 
         s.on("user_left", (leftUserId: string) => {
+            console.log("🚪 User left:", leftUserId);
             setMembers((prev) => prev.filter((m) => m.userId !== leftUserId));
         });
 
-        s.on("user_typing", (data: { userId: string; roomId: string }) => {
-            if (data.userId !== userId) {
-                setTypingUsers((prev) => [...new Set([...prev, data.userId])]);
-            }
-        });
-
-        s.on("user_stopped_typing", (data: { userId: string; roomId: string }) => {
-            setTypingUsers((prev) => prev.filter((u) => u !== data.userId));
-        });
-
-        s.on("message_liked", (data: { messageId: string; likes: number }) => {
-            setMessages((prev) =>
-                prev.map((m) => (m.id === data.messageId ? { ...m, likes: data.likes } : m))
-            );
-        });
-
         return () => {
+            console.log("🔌 Disconnecting socket");
             s.disconnect();
         };
-    }, [userId]);
+    }, [visible]);
 
-    // Join room
+    // Join room when socket is ready
     useEffect(() => {
-        if (socket && roomId) {
+        if (socket && roomId && visible) {
+            console.log(`🚪 Joining room: ${roomId}`);
             socket.emit("join_room", { roomId, userId });
         }
+        
         return () => {
             if (socket && roomId) {
+                console.log(`👋 Leaving room: ${roomId}`);
                 socket.emit("leave_room", { roomId, userId });
             }
         };
-    }, [socket, roomId, userId]);
+    }, [socket, roomId, userId, visible]);
 
-    // Slide animation
+    // Smooth entrance animation
     useEffect(() => {
         if (visible) {
-            Animated.spring(slideAnim, {
-                toValue: 1,
-                useNativeDriver: true,
-                tension: 50,
-                friction: 8,
-            }).start();
+            Animated.parallel([
+                Animated.spring(slideAnim, {
+                    toValue: 1,
+                    useNativeDriver: true,
+                    tension: 65,
+                    friction: 9,
+                }),
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 200,
+                    useNativeDriver: true,
+                })
+            ]).start();
         } else {
             slideAnim.setValue(0);
+            fadeAnim.setValue(0);
         }
     }, [visible]);
 
-    const handleTyping = () => {
-        if (socket && roomId) {
-            socket.emit("typing", { roomId, userId });
-            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-            typingTimeoutRef.current = setTimeout(() => {
-                socket.emit("stop_typing", { roomId, userId });
-            }, 3000);
+    // Auto-scroll to bottom when new message arrives
+    useEffect(() => {
+        if (flatListRef.current && messages.length > 0) {
+            setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
         }
-    };
+    }, [messages]);
 
     const sendMessage = async () => {
         if (!message.trim() || !socket || !roomId || sending) return;
+        
         setSending(true);
 
         const msg: Message = {
             id: Date.now().toString(),
             userId,
-            text: message,
+            text: message.trim(),
             timestamp: Date.now(),
-            likes: 0,
         };
 
-        socket.emit("send_message", { ...msg, roomId });
+        // Optimistically add message
         setMessages((prev) => [...prev, msg]);
+        
+        // Send to server
+        socket.emit("send_message", { ...msg, roomId });
+        
+        // Clear input
         setMessage("");
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        socket.emit("stop_typing", { roomId, userId });
-
+        
         setTimeout(() => setSending(false), 300);
     };
 
-    const likeMessage = (messageId: string) => {
-        if (socket && roomId) {
-            socket.emit("like_message", { roomId, messageId });
-        }
-    };
-
-    useEffect(() => {
-        if (flatListRef.current && messages.length > 0) {
-            flatListRef.current.scrollToEnd({ animated: true });
-        }
-    }, [messages]);
-
     const formatTime = (timestamp: number) => {
         const date = new Date(timestamp);
-        return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+        return date.toLocaleTimeString("en-US", { 
+            hour: "2-digit", 
+            minute: "2-digit",
+            hour12: true 
+        });
     };
 
     const getRoomName = () => {
-        if (!post?.tags || post.tags.length === 0) return "Unnamed Room";
+        if (!post?.tags || post.tags.length === 0) return "Chat Room";
         return post.tags.map(tag => `#${tag}`).join(" • ");
+    };
+
+    const handleClose = () => {
+        // Smooth exit
+        Animated.parallel([
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 200,
+                useNativeDriver: true,
+            }),
+            Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 200,
+                useNativeDriver: true,
+            })
+        ]).start(() => {
+            setMessages([]);
+            setMembers([]);
+            setShowMembers(false);
+            onClose();
+        });
     };
 
     if (!visible) return null;
 
     return (
-        <Modal visible={visible} animationType="fade" transparent statusBarTranslucent>
+        <Modal 
+            visible={visible} 
+            animationType="none" 
+            transparent 
+            statusBarTranslucent
+        >
             <KeyboardAvoidingView
                 style={styles.modalOverlay}
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
             >
-                <TouchableWithoutFeedback onPress={onClose}>
-                    <View style={styles.modalOverlay} />
-                </TouchableWithoutFeedback>
+                <Animated.View 
+                    style={[
+                        styles.backdrop,
+                        { opacity: fadeAnim }
+                    ]}
+                >
+                    <TouchableWithoutFeedback onPress={handleClose}>
+                        <View style={StyleSheet.absoluteFill} />
+                    </TouchableWithoutFeedback>
+                </Animated.View>
+
                 <Animated.View
                     style={[
                         styles.container,
@@ -225,16 +259,18 @@ export default function GroupChat({ roomId, userId, onClose, visible }: GroupCha
                                 {
                                     translateY: slideAnim.interpolate({
                                         inputRange: [0, 1],
-                                        outputRange: [600, 0],
+                                        outputRange: [700, 0],
                                     }),
                                 },
                             ],
+                            opacity: fadeAnim,
                         },
                     ]}
                 >
                     {loading ? (
                         <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color="#000" />
+                            <ActivityIndicator size="large" color="#4CAF50" />
+                            <Text style={styles.loadingText}>Loading chat...</Text>
                         </View>
                     ) : (
                         <>
@@ -242,7 +278,10 @@ export default function GroupChat({ roomId, userId, onClose, visible }: GroupCha
                             <View style={styles.header}>
                                 <View style={styles.headerLeft}>
                                     {post?.imageUrl && (
-                                        <Image source={{ uri: post.imageUrl }} style={styles.roomImage} />
+                                        <Image 
+                                            source={{ uri: post.imageUrl }} 
+                                            style={styles.roomImage} 
+                                        />
                                     )}
                                     <View style={styles.headerText}>
                                         <Text style={styles.roomTitle} numberOfLines={1}>
@@ -250,93 +289,97 @@ export default function GroupChat({ roomId, userId, onClose, visible }: GroupCha
                                         </Text>
                                         <Pressable onPress={() => setShowMembers(!showMembers)}>
                                             <Text style={styles.memberCount}>
-                                                {members.length} {members.length === 1 ? "member" : "members"} online
+                                                {members.length} {members.length === 1 ? "person" : "people"} here
                                             </Text>
                                         </Pressable>
                                     </View>
                                 </View>
-                                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                                <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
                                     <Text style={styles.closeIcon}>✕</Text>
                                 </TouchableOpacity>
                             </View>
 
                             {/* Members List */}
                             {showMembers && (
-                                <FlatList
-                                    data={members}
-                                    keyExtractor={(item) => item.userId}
-                                    renderItem={({ item }) => (
-                                        <View style={styles.memberItem}>
-                                            <Text style={styles.memberName}>User {item.userId.slice(0, 6)}</Text>
-                                            {item.isTyping && <Text style={styles.typing}>Typing...</Text>}
+                                <View style={styles.membersList}>
+                                    <Text style={styles.membersTitle}>👥 People in this chat:</Text>
+                                    {members.map((member, index) => (
+                                        <View key={`${member.userId}-${index}`} style={styles.memberItem}>
+                                            <View style={styles.memberDot} />
+                                            <Text style={styles.memberName}>
+                                                User {member.userId.slice(0, 8)}
+                                                {member.userId === userId && " (You)"}
+                                            </Text>
                                         </View>
-                                    )}
-                                    style={styles.membersList}
-                                />
-                            )}
-
-                            {/* Typing Indicator */}
-                            {typingUsers.length > 0 && (
-                                <Text style={styles.typingIndicator}>
-                                    {typingUsers.map((u) => `User ${u.slice(0, 6)}`).join(", ")} {typingUsers.length > 1 ? "are" : "is"} typing...
-                                </Text>
+                                    ))}
+                                </View>
                             )}
 
                             {/* Messages */}
-                            <FlatList
-                                ref={flatListRef}
-                                data={messages}
-                                keyExtractor={(item) => item.id}
-                                renderItem={({ item }) => {
-                                    const isMe = item.userId === userId;
-                                    return (
-                                        <View style={[styles.messageWrapper, isMe && styles.myMessageWrapper]}>
-                                            <View style={[styles.messageBubble, isMe ? styles.myMsg : styles.theirMsg]}>
-                                                {!isMe && (
-                                                    <Text style={styles.senderName}>
-                                                        User {item.userId.slice(0, 6)}
+                            {messages.length === 0 ? (
+                                <View style={styles.emptyMessages}>
+                                    <Text style={styles.emptyMessagesEmoji}>💬</Text>
+                                    <Text style={styles.emptyMessagesText}>
+                                        No messages yet
+                                    </Text>
+                                    <Text style={styles.emptyMessagesSubtext}>
+                                        Be the first to say hello!
+                                    </Text>
+                                </View>
+                            ) : (
+                                <FlatList
+                                    ref={flatListRef}
+                                    data={messages}
+                                    keyExtractor={(item) => item.id}
+                                    renderItem={({ item }) => {
+                                        const isMe = item.userId === userId;
+                                        return (
+                                            <View style={[styles.messageWrapper, isMe && styles.myMessageWrapper]}>
+                                                <View style={[styles.messageBubble, isMe ? styles.myMsg : styles.theirMsg]}>
+                                                    {!isMe && (
+                                                        <Text style={styles.senderName}>
+                                                            User {item.userId.slice(0, 8)}
+                                                        </Text>
+                                                    )}
+                                                    <Text style={[styles.messageText, isMe && styles.myMessageText]}>
+                                                        {item.text}
                                                     </Text>
-                                                )}
-                                                <Text style={[styles.messageText, isMe && styles.myMessageText]}>
-                                                    {item.text}
-                                                </Text>
-                                                <View style={styles.messageFooter}>
                                                     <Text style={[styles.timestamp, isMe && styles.myTimestamp]}>
                                                         {formatTime(item.timestamp)}
                                                     </Text>
-                                                    <Pressable onPress={() => likeMessage(item.id)} style={styles.likeButton}>
-                                                        <Text style={styles.likeEmoji}>👍</Text>
-                                                        <Text style={styles.likeCount}>{item.likes ?? 0}</Text>
-                                                    </Pressable>
                                                 </View>
                                             </View>
-                                        </View>
-                                    );
-                                }}
-                                contentContainerStyle={styles.messageList}
-                                showsVerticalScrollIndicator={false}
-                            />
+                                        );
+                                    }}
+                                    contentContainerStyle={styles.messageList}
+                                    showsVerticalScrollIndicator={false}
+                                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                                />
+                            )}
 
                             {/* Input */}
                             <View style={styles.inputContainer}>
                                 <TextInput
                                     value={message}
-                                    onChangeText={(text) => {
-                                        setMessage(text);
-                                        if (text.trim()) handleTyping();
-                                    }}
+                                    onChangeText={setMessage}
                                     placeholder="Type a message..."
                                     placeholderTextColor="#999"
                                     style={styles.input}
                                     multiline
                                     maxLength={500}
+                                    onSubmitEditing={sendMessage}
                                 />
                                 <TouchableOpacity
                                     onPress={sendMessage}
-                                    style={[styles.sendButton, (!message.trim() || sending) && styles.sendButtonDisabled]}
+                                    style={[
+                                        styles.sendButton, 
+                                        (!message.trim() || sending) && styles.sendButtonDisabled
+                                    ]}
                                     disabled={!message.trim() || sending}
                                 >
-                                    <Text style={styles.sendIcon}>{sending ? "⏳" : "➤"}</Text>
+                                    <Text style={styles.sendIcon}>
+                                        {sending ? "⏳" : "➤"}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         </>
@@ -350,8 +393,11 @@ export default function GroupChat({ roomId, userId, onClose, visible }: GroupCha
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: "rgba(0,0,0,0.6)",
         justifyContent: "flex-end",
+    },
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(0,0,0,0.6)",
     },
     container: {
         backgroundColor: "#fff",
@@ -367,9 +413,15 @@ const styles = StyleSheet.create({
         elevation: 20,
     },
     loadingContainer: {
-        padding: 60,
+        flex: 1,
         alignItems: "center",
         justifyContent: "center",
+        padding: 60,
+    },
+    loadingText: {
+        marginTop: 16,
+        fontSize: 16,
+        color: "#666",
     },
     header: {
         flexDirection: "row",
@@ -403,8 +455,8 @@ const styles = StyleSheet.create({
     },
     memberCount: {
         fontSize: 12,
-        color: "#666",
-        fontWeight: "500",
+        color: "#4CAF50",
+        fontWeight: "600",
     },
     closeButton: {
         width: 32,
@@ -421,32 +473,53 @@ const styles = StyleSheet.create({
         fontWeight: "600",
     },
     membersList: {
-        maxHeight: 150,
         backgroundColor: "#f5f5f5",
-        padding: 10,
+        padding: 12,
         borderBottomWidth: 1,
         borderBottomColor: "#e5e5e5",
+        maxHeight: 180,
+    },
+    membersTitle: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#333",
+        marginBottom: 8,
     },
     memberItem: {
         flexDirection: "row",
-        justifyContent: "space-between",
-        paddingVertical: 4,
+        alignItems: "center",
+        paddingVertical: 6,
+    },
+    memberDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "#4CAF50",
+        marginRight: 8,
     },
     memberName: {
         fontSize: 14,
         color: "#333",
     },
-    typing: {
-        fontSize: 12,
-        color: "#888",
-        fontStyle: "italic",
+    emptyMessages: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 40,
     },
-    typingIndicator: {
-        paddingHorizontal: 16,
-        paddingVertical: 4,
-        fontSize: 12,
-        color: "#666",
-        backgroundColor: "#f0f0f0",
+    emptyMessagesEmoji: {
+        fontSize: 64,
+        marginBottom: 16,
+    },
+    emptyMessagesText: {
+        fontSize: 18,
+        fontWeight: "600",
+        color: "#333",
+        marginBottom: 8,
+    },
+    emptyMessagesSubtext: {
+        fontSize: 14,
+        color: "#999",
     },
     messageList: {
         padding: 16,
@@ -465,7 +538,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
     myMsg: {
-        backgroundColor: "#000",
+        backgroundColor: "#4CAF50",
         borderBottomRightRadius: 4,
     },
     theirMsg: {
@@ -488,32 +561,14 @@ const styles = StyleSheet.create({
     myMessageText: {
         color: "#fff",
     },
-    messageFooter: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 4,
-        justifyContent: "space-between",
-    },
     timestamp: {
         fontSize: 10,
         color: "#999",
         fontWeight: "500",
+        marginTop: 4,
     },
     myTimestamp: {
-        color: "rgba(255,255,255,0.7)",
-    },
-    likeButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        padding: 4,
-    },
-    likeEmoji: {
-        fontSize: 12,
-    },
-    likeCount: {
-        fontSize: 10,
-        marginLeft: 2,
-        color: "#666",
+        color: "rgba(255,255,255,0.8)",
     },
     inputContainer: {
         flexDirection: "row",
@@ -541,12 +596,12 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: "#000",
+        backgroundColor: "#4CAF50",
         alignItems: "center",
         justifyContent: "center",
-        shadowColor: "#000",
+        shadowColor: "#4CAF50",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.3,
         shadowRadius: 4,
         elevation: 4,
     },

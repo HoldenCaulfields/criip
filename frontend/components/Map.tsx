@@ -4,6 +4,7 @@ import MapView, { UrlTile } from "react-native-maps";
 import * as Location from "expo-location";
 import MarkerContainer from "./markers/MarkerContainer";
 import SocialPanel from "./SocialPanel";
+import GroupChat from "./groupchat/GroupChat";
 
 interface PostMarker {
   _id: string;
@@ -25,7 +26,6 @@ export default function Map() {
   const [markers, setMarkers] = useState<PostMarker[]>([]);
   const mapRef = useRef<MapView | null>(null);
   const [chatVisible, setChatVisible] = useState(false);
-  const [chatMode, setChatMode] = useState<"chatlist" | "chat">("chatlist");
   const [roomId, setRoomId] = useState<string | null>(null);
 
   const fetchMarkers = async () => {  
@@ -84,24 +84,45 @@ export default function Map() {
     }
   };
 
-  useEffect(() => {
-    const interval = setInterval(fetchMarkers, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  // Handle opening chat from marker or group list
+  const handleOpenChat = (postId: string) => {
+    setRoomId(postId);
+    setChatVisible(true);
+  };
 
-  // 🧠 When chat closes, reset refreshKey so markers remount
+  // Handle closing chat
   const handleCloseChat = () => {
     setChatVisible(false);
+    // Don't reset roomId immediately to allow smooth transition
+    setTimeout(() => setRoomId(null), 300);
+  };
+
+  // Generate userId from location
+  const getUserId = () => {
+    if (!location) return "guest";
+    return ((location.latitude ?? 0) * 100000 + (location.longitude ?? 0) * 100000).toString();
   };
 
   return (
     <View style={styles.container}>
-      <MapView ref={mapRef} style={styles.map} region={region} showsUserLocation showsMyLocationButton={false}>
-        <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
+      <MapView 
+        ref={mapRef} 
+        style={styles.map} 
+        initialRegion={region} 
+        showsUserLocation 
+        showsMyLocationButton={false}
+      >
+        <UrlTile 
+          urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" 
+          maximumZ={21} tileSize={512}
+          flipY={false} 
+        />
 
-        <MarkerContainer markers={markers} onLovePress={fetchMarkers}
-          setChatVisible={setChatVisible} setChatMode={setChatMode} setRoomId={setRoomId} />
-
+        <MarkerContainer 
+          markers={markers} 
+          onLovePress={fetchMarkers}
+          onChatPress={handleOpenChat}
+        />
       </MapView>
 
       <Pressable style={styles.locateButton} onPress={handleCenterUser}>
@@ -109,30 +130,12 @@ export default function Map() {
       </Pressable>
 
       <SocialPanel
-        openChat={chatVisible}
+        chatVisible={chatVisible}
         roomId={roomId}
-        userId={((location?.latitude ?? 0) * 100000 + (location?.longitude ?? 0) * 100000).toString()}
-        onOpenChat={(id) => {
-          setRoomId(id);
-          setChatVisible(true);
-        }}
+        userId={getUserId()}
+        onOpenChat={handleOpenChat}
         onCloseChat={handleCloseChat}
       />
-      {/* <ChatBox
-        visible={chatVisible}
-        initialMode={chatMode}
-        roomId={roomId} 
-        onClose={() => {setChatVisible(false); setChatMode('chatlist')}}
-      /> 
-
-      {chatVisible && (
-        <GroupChat
-          roomId={roomId}
-          userId={((location?.latitude ?? 0)*100000 + (location?.longitude ?? 0)*100000).toString()}
-          onClose={() => setChatVisible(false)}
-          visible={chatVisible}
-        />
-      )}*/}
     </View>
   );
 }

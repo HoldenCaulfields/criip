@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Image, StyleSheet } from "react-native";
+import { View, Text, Image, StyleSheet, Pressable, Platform } from "react-native";
 import { Marker, Callout, CalloutSubview } from "react-native-maps";
 
 interface MarkerContainerProps {
@@ -12,17 +12,13 @@ interface MarkerContainerProps {
     location: { latitude: number; longitude: number };
   }[];
   onLovePress?: (markerId: string) => void;
-  setChatVisible: (value: boolean) => void;
-  setChatMode: (value: 'chat'| 'chatlist') => void;
-  setRoomId: (roomId: string) => void;
+  onChatPress: (markerId: string) => void;
 }
 
 export default function MarkerContainer({
   markers,
   onLovePress,
-  setChatVisible,
-  setChatMode,
-  setRoomId,
+  onChatPress,
 }: MarkerContainerProps) {
   const OFFSET = 0.00002;
 
@@ -33,11 +29,17 @@ export default function MarkerContainer({
         method: "PUT",
       });
       const updated = await res.json();
-      /* console.log("❤️ Loved:", updated.loves); */
+      console.log("❤️ Loved:", updated.loves);
       onLovePress?.(markerId);
     } catch (err) {
       console.error("Failed to love marker:", err);
     }
+  };
+
+  /** Handles chat button press - opens group chat for this marker */
+  const handleChatPress = (markerId: string) => {
+    console.log("💬 Opening chat for marker:", markerId);
+    onChatPress(markerId);
   };
 
   const offsetMarkers = (markers: MarkerContainerProps["markers"]) => {
@@ -71,7 +73,7 @@ export default function MarkerContainer({
             longitude: marker.location.longitude,
           }}
         >
-          <Callout tooltip>
+          <Callout tooltip={true}>
             <View style={styles.calloutContainer}>
               <Image source={{ uri: marker.imageUrl }} style={styles.calloutImage} />
               <Text style={styles.title} numberOfLines={2}>
@@ -92,26 +94,51 @@ export default function MarkerContainer({
                 )}
               </View>
 
-              {/* POWERFUL DYNAMIC BUTTONS */}
+              {/* Interactive Buttons */}
               <View style={styles.buttonsContainer}>
-                <CalloutSubview
-                  style={styles.loveButton}
-                  onPress={() => handleLovePress(marker._id)}
-                >
-                  <View style={styles.buttonContent}>
-                    <Text style={styles.loveEmoji}>❤️</Text>
-                    <Text style={styles.loveCount}>{marker.loves ?? 0}</Text>
-                  </View>
-                </CalloutSubview>
+                {Platform.OS === "ios" ? (
+                  <>
+                    <CalloutSubview
+                      style={styles.loveButton}
+                      onPress={() => handleLovePress(marker._id)}
+                    >
+                      <View style={styles.buttonContent}>
+                        <Text style={styles.loveEmoji}>❤️</Text>
+                        <Text style={styles.loveCount}>{marker.loves ?? 0}</Text>
+                      </View>
+                    </CalloutSubview>
 
-                <CalloutSubview
-                  style={styles.chatButton}
-                  onPress={() => {setChatVisible(true); setChatMode('chat'); setRoomId(marker._id)}}
-                >
-                  <View style={styles.buttonContent}>
-                    <Text style={styles.chatEmoji}>💬</Text>
-                  </View>
-                </CalloutSubview>
+                    <CalloutSubview
+                      style={styles.chatButton}
+                      onPress={() => handleChatPress(marker._id)}
+                    >
+                      <View style={styles.buttonContent}>
+                        <Text style={styles.chatEmoji}>💬</Text>
+                      </View>
+                    </CalloutSubview>
+                  </>
+                ) : (
+                  <>
+                    <Pressable
+                      style={styles.loveButton}
+                      onPress={() => handleLovePress(marker._id)}
+                    >
+                      <View style={styles.buttonContent}>
+                        <Text style={styles.loveEmoji}>❤️</Text>
+                        <Text style={styles.loveCount}>{marker.loves ?? 0}</Text>
+                      </View>
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.chatButton}
+                      onPress={() => handleChatPress(marker._id)}
+                    >
+                      <View style={styles.buttonContent}>
+                        <Text style={styles.chatEmoji}>💬</Text>
+                      </View>
+                    </Pressable>
+                  </>
+                )}
               </View>
             </View>
           </Callout>
@@ -206,24 +233,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  loveGlow: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-    borderRadius: 35,
-  },
-  chatGlow: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
-    borderRadius: 35,
-  },
   loveEmoji: {
     fontSize: 20,
     textShadowColor: "rgba(0, 0, 0, 0.3)",
@@ -244,15 +253,5 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0, 0, 0, 0.3)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 15,
-    fontWeight: "900",
-    letterSpacing: 0.8,
-    textShadowColor: "rgba(0, 0, 0, 0.4)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 3,
-    textTransform: "uppercase",
   },
 });

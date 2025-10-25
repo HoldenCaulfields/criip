@@ -5,7 +5,7 @@ import GroupList from "./groupList/GroupList";
 import GroupChat from "./groupchat/GroupChat";
 
 interface PanelProps {
-  openChat: boolean;
+  chatVisible: boolean;
   userId: string;
   roomId: string | null;
   onOpenChat: (roomId: string) => void;
@@ -13,7 +13,7 @@ interface PanelProps {
 }
 
 export default function SocialPanel({
-  openChat,
+  chatVisible,
   userId,
   roomId,
   onOpenChat,
@@ -22,41 +22,60 @@ export default function SocialPanel({
   const [modalVisible, setModalVisible] = useState(false);
   const [groupVisible, setGroupVisible] = useState(false);
 
-  const handleSelectRoom = (roomId: string) => {
-    onOpenChat(roomId);
+  const handleSelectRoom = (selectedRoomId: string) => {
+    console.log("🎯 Room selected from list:", selectedRoomId);
+    setGroupVisible(false);
+    
+    // Small delay for smooth transition
+    setTimeout(() => {
+      onOpenChat(selectedRoomId);
+    }, 150);
+  };
+
+  const handleCloseGroupList = () => {
     setGroupVisible(false);
   };
 
   return (
-    <View style={styles.container}>
-      {/* ➕ Button */}
-      <Pressable style={styles.button} onPress={() => setModalVisible(true)}>
-        <Text style={styles.icon}>➕</Text>
-      </Pressable>
+    <>
+      <View style={styles.container}>
+        {/* ➕ Create Post Button */}
+        <Pressable 
+          style={[styles.button, styles.createButton]} 
+          onPress={() => setModalVisible(true)}
+        >
+          <Text style={styles.icon}>➕</Text>
+        </Pressable>
 
-      <CreatePostModal visible={modalVisible} onClose={() => setModalVisible(false)} />
+        {/* 💬 Group List Button */}
+        <Pressable 
+          style={[styles.button, styles.chatButton]} 
+          onPress={() => setGroupVisible(true)}
+        >
+          <Text style={styles.icon}>💬</Text>
+        </Pressable>
+      </View>
 
-      {/* 💬 Button */}
-      <Pressable style={styles.button} onPress={() => setGroupVisible(true)}>
-        <Text style={styles.icon}>💬</Text>
-      </Pressable>
+      {/* Modals */}
+      <CreatePostModal 
+        visible={modalVisible} 
+        onClose={() => setModalVisible(false)} 
+      />
 
       <GroupList
         onSelectRoom={handleSelectRoom}
         visible={groupVisible}
-        onClose={() => setGroupVisible(false)}
+        onClose={handleCloseGroupList}
       />
 
-      {/* Group Chat (controlled by Map) */}
-      {openChat && (
-        <GroupChat
-          visible={openChat}
-          roomId={roomId}
-          userId={userId}
-          onClose={onCloseChat}
-        />
-      )}
-    </View>
+      {/* Group Chat - Opens from marker or group list */}
+      <GroupChat
+        visible={chatVisible}
+        roomId={roomId}
+        userId={userId}
+        onClose={onCloseChat}
+      />
+    </>
   );
 }
 
@@ -69,13 +88,24 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   button: {
-    backgroundColor: "white",
-    borderRadius: 25,
-    padding: 12,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  icon: { fontSize: 20 },
+  createButton: {
+    backgroundColor: "#4CAF50",
+  },
+  chatButton: {
+    backgroundColor: "#2196F3",
+  },
+  icon: { 
+    fontSize: 24,
+  },
 });
